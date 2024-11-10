@@ -1,0 +1,6 @@
+@web_api_eventz_HostAddress = http://localhost:5268
+
+GET {{web_api_eventz_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

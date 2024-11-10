@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "3TT9mRBxnVr7ffEdos1IKEvAY7jeCFnIc++qHvdMVzc=",
+  "Source": "web-api-eventz",
+  "BasePath": "_content/web-api-eventz",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
