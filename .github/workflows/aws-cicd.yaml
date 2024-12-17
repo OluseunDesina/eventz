@@ -1,0 +1,117 @@
+name: .NET cicd for eventz-api
+ 
+on:
+  push:
+    branches: [ "development" ]
+ 
+  # pull_request:
+  #   types: [closed]
+  #   branches:
+  #       - dev-aws-old
+ 
+env:
+  AWS_REGION: us-east-1                 # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: eventz         # set this to your Amazon ECR repository name
+  ECS_SERVICE: eventz-dev-service             # set this to your Amazon ECS service name
+  ECS_CLUSTER: eventz-dev-cluster
+  ECS_CONTAINER_NAME: eventz
+  ECS_TASK_DEFINITION: eventz-dev-task
+  
+ 
+permissions:
+  contents: read
+ 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+ 
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 6.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+ 
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+ 
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+ 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+ 
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+ 
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and
+        # push it to ECR so that it can
+        # be deployed to ECS.
+ 
+        docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+ 
+    # - name: Download task definition
+    #   run: |
+    #       aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+    #       --query taskDefinition > task-definition.json
+          
+    # - name: Fill in the new image ID in the Amazon ECS task definition
+    #   id: task-def
+    #   uses: aws-actions/amazon-ecs-render-task-definition@v1
+    #   with:
+    #      task-definition: task-definition.json
+    #      container-name: ${{ env.ECS_CONTAINER_NAME }}
+    #      image: ${{ steps.build-image.outputs.image }}
+ 
+    # - name: Deploy Amazon ECS task definition
+    #   uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+    #   with:  
+    #     task-definition: ${{ steps.task-def.outputs.task-definition }}
+    #     service: ${{ env.MY_ECS_SERVICE }}
+    #     cluster: ${{ env.MY_ECS_CLUSTER }}
+    #     wait-for-service-stability: true
+ 
+    # - name: Download task definition
+    #   run: |
+    #     NEW_TASK_DEFINTION=$(aws ecs describe-task-definition --task-definition eventz-admin-dev-task \
+    #     --query '{  containerDefinitions: taskDefinition.containerDefinitions,
+    #                 family: taskDefinition.family,
+    #                 taskRoleArn: taskDefinition.taskRoleArn,
+    #                 executionRoleArn: taskDefinition.executionRoleArn,
+    #                 networkMode: taskDefinition.networkMode,
+    #                 volumes: taskDefinition.volumes,
+    #                 placementConstraints: taskDefinition.placementConstraints,
+    #                 requiresCompatibilities: taskDefinition.requiresCompatibilities,
+    #                 cpu: taskDefinition.cpu,
+    #                 memory: taskDefinition.memory}')
+    #     aws ecs register-task-definition --family eventz-admin-dev-task --cli-input-json "$NEW_TASK_DEFINTION"
+    #     aws ecs update-service --cluster eventz-dev-cluster --service eventz-admin-dev-service --task-definition eventz-admin-dev-task
+ 
+    # - name: Force deployment
+    #   run: |
+    #     aws ecs update-service --cluster eventz-dev-cluster --service eventz-admin-dev-service --force-new-deployment
+ 
+ 
+ 
